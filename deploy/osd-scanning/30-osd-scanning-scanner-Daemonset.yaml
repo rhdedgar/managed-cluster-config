@@ -16,7 +16,11 @@ spec:
       - env:
         - name: OO_PAUSE_ON_START
           value: "false"
-        image: quay.io/app-sre/clamsig-puller@sha256:cc4037652e1edac0c7619b8388c0fb8787a869777877a03c77d38ad9e4d55593
+        - name: CLAM_SECRETS_FILE
+          value: "/secrets/clam_update_config.json"
+        - name: CLAM_DB_DIRECTORY
+          value: "/clam"
+        image: quay.io/dedgar/clamsig-puller:v0.0.11
         name: clamsig-puller
         resources:
           limits:
@@ -33,7 +37,7 @@ spec:
       - env:
         - name: OO_PAUSE_ON_START
           value: "false"
-        image: quay.io/app-sre/clamd@sha256:d9190ef7dfa9881d776a13ab8a22fc9945d94550b4f7ce7f02d3df1ba8f45b0f
+        image: quay.io/dedgar/clamd:v0.0.17
         name: clamd
         resources:
           limits:
@@ -50,7 +54,7 @@ spec:
           value: "false"
         - name: CHROOT_PATH
           value: /host
-        image: quay.io/app-sre/container-info@sha256:fdfd73ab7718aabf32278fc3f312c36dfddd49661cbb76592a4192f006a50c52
+        image: quay.io/dedgar/container-info:v0.0.15
         name: info
         resources:
           limits:
@@ -92,7 +96,7 @@ spec:
           value: /clam/clamd.sock
         - name: INFO_SOCKET
           value: '@rpc.sock'
-        image: quay.io/app-sre/watcher@sha256:03be52ccf730497effb8b890f1a3cbfc3814bca6b3a21b91f76702395327b33c
+        image: quay.io/dedgar/watcher:v0.0.71
         name: watcher
         resources:
           limits:
@@ -144,7 +148,7 @@ spec:
           value: openshift-scanning
         - name: HOST_SCAN_DIRS
           value: /host
-        image: quay.io/app-sre/watcher@sha256:03be52ccf730497effb8b890f1a3cbfc3814bca6b3a21b91f76702395327b33c
+        image: quay.io/dedgar/watcher:v0.0.71
         name: scheduler
         resources:
           limits:
@@ -170,7 +174,13 @@ spec:
           value: "false"
         - name: INIT_CONTAINER
           value: "true"
-        image: quay.io/app-sre/clamsig-puller@sha256:cc4037652e1edac0c7619b8388c0fb8787a869777877a03c77d38ad9e4d55593
+        - name: DEBUG_SECRETS 
+          value: "true"
+        - name: CLAM_DB_DIRECTORY
+          value: "/clam"
+        - name: CLAM_SECRETS_FILE
+          value: "/secrets/clam_update_config.json"
+        image: quay.io/dedgar/clamsig-puller:v0.0.11
         name: init-clamsig-puller
         resources:
           limits:

@@ -1,0 +1,73 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: signature-updater
+  namespace: openshift-signature-updater
+spec:
+  failedJobsHistoryLimit: 5
+  successfulJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  backoffLimit: 1
+  schedule: "20 18 * * 1"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+#          affinity:
+#            nodeAffinity:
+#              preferredDuringSchedulingIgnoredDuringExecution:
+#              - preference:
+#                  matchExpressions:
+#                  - key: topology.kubernetes.io/region
+#                    operator: In
+#                    values:
+#                    - us-gov-west-1
+#                    - us-gov-east-1
+#                weight: 1
+          restartPolicy: Never
+          initContainers:
+          - name: clamd
+            env:
+            - name: OO_PAUSE_ON_START
+              value: "false"
+            - name: INIT_CONTAINER
+              value: "true"
+            image: quay.io/dedgar/clamd:v0.0.18
+            resources:
+              limits:
+                cpu: 300m
+                memory: 2Gi
+              requests:
+                cpu: 100m
+                memory: 600Mi
+            volumeMounts:
+            - mountPath: /var/lib/clamav
+              name: clam-files
+          containers:
+          - name: clam-update 
+            env:
+            - name: OO_PAUSE_ON_START
+              value: "false"
+            - name: CRON_JOB
+              value: "true"
+            - name: CLAM_UPDATE_SECRETS_FILE
+              value: "/secrets/update_secrets.json"
+            - name: CLAM_DB_DIRECTORY
+              value: "/clam/"
+            - name: DEBUG_APP
+              value: "true"
+            volumeMounts:
+            - mountPath: /clam
+              name: clam-files
+            - mountPath: /secrets
+              name: update-secrets
+            image: quay.io/dedgar/clam-update:v0.0.11
+            imagePullPolicy: Always
+            command: ["/usr/local/bin/start.sh"]
+          volumes:
+          - name: update-secrets
+            secret:
+              secretName: update-secrets
+          - name: clam-files
+            emptyDir: {}
