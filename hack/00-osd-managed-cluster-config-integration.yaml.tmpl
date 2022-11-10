@@ -12729,10 +12729,10 @@ objects:
       seLinuxContext:
         type: RunAsAny
     - apiVersion: rbac.authorization.k8s.io/v1
-      kind: Role
+      kind: ClusterRole
       metadata:
         creationTimestamp: null
-        name: logger-role
+        name: logger-clusterrole
         namespace: openshift-scanning
       rules:
       - apiGroups:
@@ -12745,51 +12745,26 @@ objects:
       - apiGroups:
         - ''
         resources:
-        - secrets
-        - services
-        verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-      - apiGroups:
-        - ''
-        resources:
         - services
         verbs:
         - get
         - list
       - apiGroups:
-        - security.openshift.io
+        - config.openshift.io
         resources:
-        - securitycontextconstraints
+        - clusterversions
         verbs:
-        - create
         - get
-        - update
-        - use
-      - apiGroups:
-        - security.openshift.io
-        resourceNames:
-        - privileged
-        resources:
-        - securitycontextconstraints
-        verbs:
-        - create
-        - get
-        - update
+        - list
     - apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
+      kind: ClusterRoleBinding
       metadata:
-        name: logger-rolebinding
+        name: logger-clusterrolebinding
         namespace: openshift-scanning
       roleRef:
         apiGroup: rbac.authorization.k8s.io
-        kind: Role
-        name: logger-role
+        kind: ClusterRole
+        name: logger-clusterrole
       subjects:
       - kind: ServiceAccount
         name: logger-sa
@@ -12806,9 +12781,6 @@ objects:
         resources:
         - securitycontextconstraints
         verbs:
-        - create
-        - get
-        - update
         - use
       - apiGroups:
         - security.openshift.io
@@ -12817,9 +12789,7 @@ objects:
         resources:
         - securitycontextconstraints
         verbs:
-        - create
-        - get
-        - update
+        - use
     - apiVersion: rbac.authorization.k8s.io/v1
       kind: RoleBinding
       metadata:
@@ -12857,7 +12827,21 @@ objects:
                 value: /host/var/log/openshift_managed_malware_scan.log
               - name: POD_LOG_FILE
                 value: /host/var/log/openshift_managed_pod_creation.log
-              image: quay.io/app-sre/pod-logger@sha256:465617d4ea307195ed4b2e1d5066ae3c2548344009e84f493e04461f8d24a3da
+              - name: POD_SOCK
+                value: '@rpc.pod.sock'
+              - name: SCAN_SOCK
+                value: '@rpc.scan.sock'
+              - name: APP_SECRETS_PATH
+                value: /secrets/api_config.json
+              - name: SA_TOKEN_PATH
+                value: /var/run/secrets/kubernetes.io/serviceaccount/token
+              - name: OAPI_URL
+                value: https://openshift.default.svc.cluster.local
+              - name: CV_URL
+                value: /apis/config.openshift.io/v1/clusterversions
+              - name: MIDDLEWARE_LOGGER
+                value: 'true'
+              image: quay.io/app-sre/pod-logger@sha256:8c4d6118f4a475be29a9638198dffb96ad47d703e69e7750e8429a2e8e02a63d
               name: logger
               ports:
               - containerPort: 8080
@@ -12870,14 +12854,37 @@ objects:
                 requests:
                   cpu: 100m
                   memory: 50Mi
-              securityContext:
-                privileged: true
-                runAsUser: 0
               volumeMounts:
               - mountPath: /secrets
                 name: logger-secrets
-              - mountPath: /host/var/log/
-                name: host-logs
+            - env:
+              - name: OO_PAUSE_ON_START
+                value: 'false'
+              - name: SOCK
+                value: '@rpc.pod.sock'
+              image: quay.io/app-sre/log-printer@sha256:af480dffcf9953f37c97f81bcc5429d371685c3194c10368264dff0f12189426
+              name: pod-printer
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 100Mi
+                requests:
+                  cpu: 100m
+                  memory: 50Mi
+            - env:
+              - name: OO_PAUSE_ON_START
+                value: 'false'
+              - name: SOCK
+                value: '@rpc.scan.sock'
+              image: quay.io/app-sre/log-printer@sha256:af480dffcf9953f37c97f81bcc5429d371685c3194c10368264dff0f12189426
+              name: scan-printer
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 100Mi
+                requests:
+                  cpu: 100m
+                  memory: 50Mi
             nodeSelector:
               node-role.kubernetes.io/master: ''
             serviceAccountName: logger-sa
@@ -12887,9 +12894,6 @@ objects:
             - name: logger-secrets
               secret:
                 secretName: logger-secrets
-            - hostPath:
-                path: /var/log/
-              name: host-logs
     - apiVersion: v1
       kind: Service
       metadata:
@@ -12924,15 +12928,21 @@ objects:
             - env:
               - name: OO_PAUSE_ON_START
                 value: 'false'
-              image: quay.io/app-sre/clamsig-puller@sha256:cc4037652e1edac0c7619b8388c0fb8787a869777877a03c77d38ad9e4d55593
+              - name: CLAM_SECRETS_FILE
+                value: /secrets/clam_update_config.json
+              - name: DEBUG_SECRETS
+                value: 'false'
+              - name: CLAM_DB_DIRECTORY
+                value: /clam
+              image: quay.io/app-sre/clamsig-puller@sha256:7e9b4ba25e97f4a05003f419949039ebdcf7143e4714310a83025971cb657202
               name: clamsig-puller
               resources:
                 limits:
                   cpu: 100m
-                  memory: 200Mi
+                  memory: 2Gi
                 requests:
                   cpu: 100m
-                  memory: 50Mi
+                  memory: 500Mi
               volumeMounts:
               - mountPath: /secrets
                 name: clam-secrets
@@ -12945,11 +12955,16 @@ objects:
               name: clamd
               resources:
                 limits:
-                  cpu: 300m
-                  memory: 1Gi
+                  cpu: 400m
+                  memory: 3Gi
                 requests:
                   cpu: 100m
-                  memory: 600Mi
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
               volumeMounts:
               - mountPath: /var/lib/clamav
                 name: clam-files
@@ -13078,7 +13093,13 @@ objects:
                 value: 'false'
               - name: INIT_CONTAINER
                 value: 'true'
-              image: quay.io/app-sre/clamsig-puller@sha256:cc4037652e1edac0c7619b8388c0fb8787a869777877a03c77d38ad9e4d55593
+              - name: CLAM_SECRETS_FILE
+                value: /secrets/clam_update_config.json
+              - name: DEBUG_SECRETS
+                value: 'false'
+              - name: CLAM_DB_DIRECTORY
+                value: /clam
+              image: quay.io/app-sre/clamsig-puller@sha256:7e9b4ba25e97f4a05003f419949039ebdcf7143e4714310a83025971cb657202
               name: init-clamsig-puller
               resources:
                 limits:
