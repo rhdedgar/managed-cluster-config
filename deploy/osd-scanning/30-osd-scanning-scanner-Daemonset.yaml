@@ -18,10 +18,10 @@ spec:
           value: "false"
         - name: CLAM_DB_DIRECTORY
           value: "/clam"
-        - name: CLAM_SECRETS_FILE
-          value: /secrets/clam_update_config.json
         - name: DEBUG_SECRETS
           value: "false"
+        - name: CLAM_SECRETS_FILE
+          value: "/secrets/clam_update_config.json"
         image: quay.io/app-sre/clamsig-puller@sha256:7e9b4ba25e97f4a05003f419949039ebdcf7143e4714310a83025971cb657202
         name: clamsig-puller
         resources:
@@ -30,7 +30,7 @@ spec:
             memory: 2Gi
           requests:
             cpu: 100m
-            memory: 50Mi
+            memory: 500Mi
         volumeMounts:
         - mountPath: /secrets
           name: clam-secrets
@@ -48,6 +48,11 @@ spec:
           requests:
             cpu: 100m
             memory: 800Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /var/lib/clamav
           name: clam-files
@@ -178,10 +183,10 @@ spec:
           value: "true"
         - name: CLAM_DB_DIRECTORY
           value: "/clam"
-        - name: CLAM_SECRETS_FILE
-          value: /secrets/clam_update_config.json
         - name: DEBUG_SECRETS
           value: "false"
+        - name: CLAM_SECRETS_FILE
+          value: "/secrets/clam_update_config.json"
         image: quay.io/app-sre/clamsig-puller@sha256:7e9b4ba25e97f4a05003f419949039ebdcf7143e4714310a83025971cb657202
         name: init-clamsig-puller
         resources:
